@@ -31,9 +31,12 @@ class equation:
         fig.canvas.draw()
         fig.canvas.flush_events()
 
-class EulerApproximations(equation):
+class Approximations(equation):
+    
     def __init__(self, x0, y0, X, N):
         super().__init__(x0, y0, X, N)
+
+
 
     def draw(self):
         x = [self.x0]
@@ -51,6 +54,8 @@ class EulerApproximations(equation):
         ty = 1.0/(tc-tx) + np.exp(tx)
         le = np.abs(ty-y)
 
+        
+
 
         plt.ion()
 
@@ -61,11 +66,31 @@ class EulerApproximations(equation):
         axs[0, 1].plot(x, le, 'tab:orange')
         axs[0, 1].set_title('local error')
 
-        axs[1, 0].plot(x, y, 'tab:green')
+        g = []
+        for i in range(1, int(self.N)):
+            x = [self.x0]
+            y = [self.y0]
+            dy = [2]  # dy(0)
+            step = (self.X-self.x0)/i
+            for i in range(1, int(i)):
+                x.append(x[i-1]+step)
+                y.append(y[i-1] + step*dy[i-1])
+                dy.append(np.exp(2*x[i]) + np.exp(x[i]) +
+                        y[i]*y[i] - 2*y[i]*np.exp(x[i]))
+
+            tx = np.linspace(self.x0, self.X, i+1)
+            tc = 1.0/(self.y0-np.exp(self.x0))+self.x0
+            ty = 1.0/(tc-tx) + np.exp(tx)
+            le = np.abs(ty-y)
+            g.append(max(le))
+
+        axs[1, 0].plot(np.linspace(1, self.N, self.N-1), g, 'tab:green')
         axs[1, 0].set_title('global error')
 
         fig.canvas.draw()
         fig.canvas.flush_events()
+
+
 
 def f(x, y):
     return np.exp(2*x) + np.exp(x) + y**2 - 2*y*np.exp(x)
@@ -86,7 +111,6 @@ def improvedEulers(x0, y0, X, N):
         x1 = x[i]+step
         y1 = y[i-1]+step*dy[i-1]
         dy1.append(np.exp(2*x1) + np.exp(x1) + y1*y1 - 2*y1*np.exp(x1))
-        print(x[i], y[i], dy[i])
 
     tx = np.linspace(x0, X, N)
     tc = 1.0/(y0-np.exp(x0))+x0
@@ -102,7 +126,29 @@ def improvedEulers(x0, y0, X, N):
     axs[0, 1].plot(x, le, 'tab:orange')
     axs[0, 1].set_title('local error')
 
-    axs[1, 0].plot(x, y, 'tab:green')
+    g = []
+    for i in range(1, int(N+1)):
+        x = [x0]
+        y = [y0]
+        dy = [np.exp(2*x0) + np.exp(x0) + y0*y0 - 2*y0*np.exp(x0)]  # dy(x0,y0)
+        dy1 = [np.exp(2*x0) + np.exp(x0) + y0*y0 - 2*y0*np.exp(x0)]
+        step = (X-x0)/i
+        for i in range(1, int(i)):
+            x.append(x[i-1]+step)
+            y.append(y[i-1] + step/2*(dy[i-1] + dy1[i-1]))
+            dy.append(f(x[i], y[i]))
+            x1 = x[i]+step
+            y1 = y[i-1]+step*dy[i-1]
+            dy1.append(np.exp(2*x1) + np.exp(x1) + y1*y1 - 2*y1*np.exp(x1))
+
+        tx = np.linspace(x0, X, i+1)
+        tc = 1.0/(y0-np.exp(x0))+x0
+        ty = 1.0/(tc-tx) + np.exp(tx)
+        le = np.abs(ty-y)
+        g.append(max(le))
+    print(g)
+
+    axs[1, 0].plot(np.linspace(1, N, N), g, 'tab:green')
     axs[1, 0].set_title('global error')
 
     fig.canvas.draw()
@@ -141,7 +187,31 @@ def rungeKutta(x0, y0, X, N):
     axs[0, 1].plot(X1, le, 'tab:orange')
     axs[0, 1].set_title('local error')
 
-    axs[1, 0].plot(X1, Y, 'tab:green')
+    g = []
+    for i in range(1, int(N+2)):
+        X1 = np.linspace(x0, X, i+1)
+        Y = []
+        x_cur = x0
+        y_cur = x0
+        Y.append(y_cur)
+        h = (X-x0)/(i)
+        for i in range(int(i)):
+            k1 = f(x_cur, y_cur)
+            k2 = f(x_cur+h/2, y_cur+h/2*k1)
+            k3 = f(x_cur+h/2, y_cur+h/2*k2)
+            k4 = f(x_cur+h, y_cur+h*k3)
+            y_cur = y_cur+h/6*(k1+2*k2+2*k3+k4)
+            Y.append(y_cur)
+            x_cur += h
+        Y = np.array(Y)
+        
+        tx = np.linspace(x0, X, i+2)
+        tc = 1.0/(y0-np.exp(x0))+x0
+        ty = 1.0/(tc-tx) + np.exp(tx)
+        le = np.abs(ty-Y)
+        g.append(max(le))
+    X1 = np.linspace(x0, X, N+1)
+    axs[1, 0].plot(np.linspace(1, N, N+1), g, 'tab:green')
     axs[1, 0].set_title('global error')
 
     fig.canvas.draw()
@@ -170,21 +240,42 @@ def _update(_class):
     e.draw()
     l_status.config(text=" ")
 
+def _update2(_fun):
+    x0 = -1
+    y0 = -1
+    X = -1
+    N = -1
+    try:
+        if e_x0.get():
+            x0 = float(e_x0.get())
+        if e_y0.get():
+            y0 = float(e_y0.get())
+        if e_X.get():
+            X = float(e_X.get())
+        if e_N.get():
+            N = float(e_N.get())
+        print("x=%d fd=%d sf=%d fsd=%d", x0, y0, X, N)
+    except ValueError:
+        l_status.config(text="Error")
+        return False
+    _fun(x0,y0,X,N)
+    l_status.config(text=" ")
+
 
 def _exact():
     _update(equation)
 
 
 def _euler():
-    _update(EulerApproximations)
+    _update(Approximations)
 
 
 def _improvedEulers():
-    _update(improvedEulers)
+    _update2(improvedEulers)
 
 
 def _rungeKutta():
-    _update(rungeKutta)
+    _update2(rungeKutta)
 
 
 b_quit = tk.Button(master=root, text="Exact", command=_exact)
